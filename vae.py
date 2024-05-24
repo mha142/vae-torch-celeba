@@ -4,8 +4,8 @@ from torch import nn
 from torchvision import transforms
 
 CELEB_PATH = './data/'
-IMAGE_SIZE = 150
-LATENT_DIM = 128
+IMAGE_SIZE = 512
+LATENT_DIM = 512
 image_dim = 3 * IMAGE_SIZE * IMAGE_SIZE  # 67500
 print('\nCELEB_PATH', CELEB_PATH, 
       'IMAGE_SIZE', IMAGE_SIZE, 
