@@ -26,10 +26,10 @@ from pathlib import Path
 
 
 
-NUM_EPOCHS = 3  # number of training epochs
-START_EPOCH = 2 # 0 means that this epoch is the first epoch in the training 
-PRINT_EVERY = 1
-PREVIOUS_DIR = 'vaemodels-mwnqre'
+NUM_EPOCHS = 6000  # number of training epochs
+START_EPOCH = 0 # 0 means that this epoch is the first epoch in the training 
+PRINT_EVERY = 500
+PREVIOUS_DIR = 'vaemodels_2_epochs'
 
 
 BATCH_SIZE = 40 #16  # for data loaders # you can increase the batch size if you specify the number of workers (30) to be close to the number of cores (56)
@@ -148,13 +148,13 @@ def test(epoch):
                 comparison = torch.cat([data[:n],
                                         recon_batch.view(BATCH_SIZE, 3, IMAGE_SIZE, IMAGE_SIZE)[:n]])
                 save_image(comparison.cpu(),
-                           f'{directory}/reconstruction_{str(epoch)}.png', nrow=n)
+                           f'{directory}/reconstruction_grid_{str(epoch)}.png', nrow=n)
                 
                 #save single images 
                 recon_batch = recon_batch.view(BATCH_SIZE, 3, IMAGE_SIZE, IMAGE_SIZE)
-                save_image(data[0].detach().cpu(), f"./{directory}/GT_image_512_e{epoch}.png")#you need to go to the cpu to save the image 
-                save_image(recon_batch[0].detach().cpu(), f"./{directory}/reconst_image_512_e{epoch}.png")
-
+                if epoch % PRINT_EVERY == 0:
+                    save_image(data[0].detach().cpu(), f"./{directory}/GroundTruth_image_512_e{epoch}.png")#you need to go to the cpu to save the image 
+                    save_image(recon_batch[0].detach().cpu(), f"./{directory}/reconst_image_512_e{epoch}.png")
 
 
     valid_epoch_loss /= len(test_loader.dataset)
@@ -175,17 +175,18 @@ if __name__ == "__main__":
         print(f"Start training for epoch # {epoch} ......... ")
         start_time = time.monotonic()
         train(epoch)
-        if epoch % PRINT_EVERY == 0:
-            #torch.save(model, f'{directory}/vae_model_{epoch}.pth')
-            save_checkpoint(model, optimizer, epoch, f'{directory}/vae_model_{epoch}.pth')
+        
         test(epoch)
         end_time = time.monotonic()
         print("training and validating this one epoch took:", timedelta(seconds= end_time - start_time))
-        with torch.no_grad():
-            sample = torch.randn(64, LATENT_DIM).to(device)
-            sample = model.decode(sample).cpu()
-            save_image(sample.view(64, 3, IMAGE_SIZE, IMAGE_SIZE),
-                       f'{directory}/sample_{str(epoch)}.png')
-    
+        if epoch % PRINT_EVERY == 0:
+            #torch.save(model, f'{directory}/vae_model_{epoch}.pth')
+            save_checkpoint(model, optimizer, epoch, f'{directory}/vae_model_{epoch}.pth')
+            with torch.no_grad():
+                sample = torch.randn(64, LATENT_DIM).to(device)
+                sample = model.decode(sample).cpu()
+                save_image(sample.view(64, 3, IMAGE_SIZE, IMAGE_SIZE),
+                        f'{directory}/sample_{str(epoch)}.png')
+        
     writer.close()
     print("Done training ....!")
