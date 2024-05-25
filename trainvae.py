@@ -22,22 +22,26 @@ from vae import VAE, IMAGE_SIZE, LATENT_DIM, CELEB_PATH, image_dim, celeb_transf
 from data_512 import FFHQ_Data
 from pathlib import Path
 
-
-
 #os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
-EPOCHS = 7000  # number of training epochs
+
+
+NUM_EPOCHS = 3  # number of training epochs
+START_EPOCH = 2 # 0 means that this epoch is the first epoch in the training 
+PRINT_EVERY = 1
+PREVIOUS_DIR = 'vaemodels-mwnqre'
+
+
 BATCH_SIZE = 40 #16  # for data loaders # you can increase the batch size if you specify the number of workers (30) to be close to the number of cores (56)
-PRINT_EVERY = 1000
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda")
-print('EPOCHS', EPOCHS, 'BATCH_SIZE', BATCH_SIZE, 'device', device)
+print('EPOCHS', NUM_EPOCHS, 'BATCH_SIZE', BATCH_SIZE, 'device', device)
 
 # for model and results
 directory = f'vaemodels-{rndstr()}'
 mkdir(directory)
 print(directory)
-writer = SummaryWriter(f'./{directory}/vae_512')
+
 
 # load dataset
 p = Path('../VAE/ffhq52000/')
@@ -70,6 +74,24 @@ test_loader = DataLoader(dataset=test_dataset, batch_size= BATCH_SIZE, num_worke
 
 model = VAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.0001)#1e-3 = 1 x 10^-3 =  0.001
+
+
+def save_checkpoint(model, optimizer, epoch, filename):
+    torch.save({
+    'epoch' : epoch,
+    'optimizer': optimizer.state_dict(),
+    'model': model.state_dict(),
+}, filename)
+    print(f"Epoch {epoch} | Training checkpoint saved at {filename}")
+
+
+def resume(model, optimizer, filename):#restart training from a specific epoch 
+#resume the state of the model   
+    checkpoint = torch.load(filename)
+    model.load_state_dict(checkpoint['model'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    epoch = checkpoint['epoch']
+    print(f'Resume training from Epoch {epoch}')
 
 
 # Reconstruction + KL divergence losses summed over all elements and batch
@@ -141,13 +163,21 @@ def test(epoch):
         print('====> Test set loss: {:.4f}'.format(valid_epoch_loss))
 
 if __name__ == "__main__":
-    print(f'epochs: {EPOCHS}')
+    
+    if START_EPOCH > 0:
+        filename = f'{PREVIOUS_DIR}/vae_model_{START_EPOCH}.pth'
+        resume(model, optimizer, filename) 
+        writer = SummaryWriter(f'./{PREVIOUS_DIR}/vae_512')
+    else: 
+        writer = SummaryWriter(f'./{directory}/vae_512')
 
-    for epoch in range(1, EPOCHS + 1):
+    for epoch in range(START_EPOCH+1, NUM_EPOCHS + 1):
+        print(f"Start training for epoch # {epoch} ......... ")
         start_time = time.monotonic()
         train(epoch)
         if epoch % PRINT_EVERY == 0:
-            torch.save(model, f'{directory}/vae_model_{epoch}.pth')
+            #torch.save(model, f'{directory}/vae_model_{epoch}.pth')
+            save_checkpoint(model, optimizer, epoch, f'{directory}/vae_model_{epoch}.pth')
         test(epoch)
         end_time = time.monotonic()
         print("training and validating this one epoch took:", timedelta(seconds= end_time - start_time))

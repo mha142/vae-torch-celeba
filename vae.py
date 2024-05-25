@@ -7,10 +7,10 @@ CELEB_PATH = './data/'
 IMAGE_SIZE = 512
 LATENT_DIM = 512
 image_dim = 3 * IMAGE_SIZE * IMAGE_SIZE  # 67500
-print('\nCELEB_PATH', CELEB_PATH, 
-      'IMAGE_SIZE', IMAGE_SIZE, 
-      'LATENT_DIM', LATENT_DIM, 
-      'image_dim', image_dim)
+# print('\nCELEB_PATH', CELEB_PATH, 
+#       'IMAGE_SIZE', IMAGE_SIZE, 
+#       'LATENT_DIM', LATENT_DIM, 
+#       'image_dim', image_dim)
 
 celeb_transform = transforms.Compose([
     transforms.Resize(IMAGE_SIZE, antialias=True),
