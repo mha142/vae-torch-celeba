@@ -33,7 +33,7 @@ class FFHQ_Data(Dataset):
         #image_cv2 = cv2.resize(image_cv2, dsize=(128,128), interpolation=cv2.INTER_LINEAR)
         image = Image.open(img_path)
 
-        image = image.resize((512, 512), Image.Resampling.LANCZOS)
+        #image = image.resize((512, 512), Image.Resampling.LANCZOS)
 
 
         if self.transform is not None:

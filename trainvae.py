@@ -26,13 +26,15 @@ from pathlib import Path
 
 
 
-NUM_EPOCHS = 6000  # number of training epochs
+NUM_EPOCHS = 800  # number of training epochs
 START_EPOCH = 0 # 0 means that this epoch is the first epoch in the training 
-PRINT_EVERY = 500
-PREVIOUS_DIR = 'vaemodels_2_epochs'
+PRINT_EVERY = 10
+PREVIOUS_DIR = 'vaemodels-e1_70k_images'
 
 
-BATCH_SIZE = 40 #16  # for data loaders # you can increase the batch size if you specify the number of workers (30) to be close to the number of cores (56)
+BATCH_SIZE = 240#240 #40  # for data loaders # you can increase the batch size if you specify the number of workers (30) to be close to the number of cores (56)
+#also you need to check the gpu usage in 'on demand' to decide if you can pump up the batch size
+# if the gpu usage is low then you can bump up the batch size 
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda")
 print('EPOCHS', NUM_EPOCHS, 'BATCH_SIZE', BATCH_SIZE, 'device', device)
@@ -44,8 +46,11 @@ print(directory)
 
 
 # load dataset
-p = Path('../VAE/ffhq52000/')
-ffhq_data = FFHQ_Data(data_dir= p, transform= transforms.ToTensor())
+#p = Path('../VAE/ffhq52000/')
+p = Path('/scratch/malmaim/unpacked_ffhq/all/')
+#ffhq_data = FFHQ_Data(data_dir= p, transform= transforms.ToTensor())
+ffhq_data = FFHQ_Data(data_dir= p, transform=transforms.Compose([transforms.ToTensor(), transforms.Resize((IMAGE_SIZE, IMAGE_SIZE))]))
+
 data_length = ffhq_data.__len__() 
 print(f'no. of images in the entire dataset is:', data_length)
 
@@ -84,6 +89,7 @@ def save_checkpoint(model, optimizer, epoch, filename):
 }, filename)
     print(f"Epoch {epoch} | Training checkpoint saved at {filename}")
 
+#----------------------------------------------------------------------------
 
 def resume(model, optimizer, filename):#restart training from a specific epoch 
 #resume the state of the model   
@@ -93,21 +99,24 @@ def resume(model, optimizer, filename):#restart training from a specific epoch
     epoch = checkpoint['epoch']
     print(f'Resume training from Epoch {epoch}')
 
+#----------------------------------------------------------------------------
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, log_var):
+    b_size = x.shape[0] #this batch size if from the data loader that has all the data 
     #change dimensions if you want to use xaing's MSE loss function 
-    recon_x = recon_x.view(40, 3, -1)
+    recon_x = recon_x.view(b_size, 3, -1)
     x_hat =  torch.flatten(x, start_dim=2)
     MSE = torch.mean(torch.sum((x_hat - recon_x)**2, dim=1), dim=-1).mean()
     
     #use the x, and recon_x that are in the arguments without any change 
     #MSE =F.mse_loss(recon_x, x.view(-1, image_dim))
-    KLD = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())
+    KLD = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())#correct
     kld_weight = 0.00025
     loss = MSE + kld_weight * KLD  
     return loss
 
+#----------------------------------------------------------------------------
 
 def train(epoch):
     model.train()
@@ -134,6 +143,8 @@ def train(epoch):
         print('====> Epoch: {} Average loss: {:.4f}'.format(
         epoch,  train_epoch_loss))
 
+#----------------------------------------------------------------------------
+
 def test(epoch):
     model.eval()
     valid_epoch_loss = 0
@@ -142,25 +153,31 @@ def test(epoch):
             data = data.to(device)
             recon_batch, mu, log_var = model(data)
             valid_epoch_loss += loss_function(recon_batch, data, mu, log_var).item()
-            if i == 0:
-                #save as a grid that has 8 ground truth images, and 8 reconstructed images
-                n = min(data.size(0), 8)
-                comparison = torch.cat([data[:n],
-                                        recon_batch.view(BATCH_SIZE, 3, IMAGE_SIZE, IMAGE_SIZE)[:n]])
-                save_image(comparison.cpu(),
-                           f'{directory}/reconstruction_grid_{str(epoch)}.png', nrow=n)
+            if epoch % 1 == 0:# save the reconstruction grid every 100 epochs 
+                if i == 0:
+                    b_size = data.shape[0]
+                    #save as a grid that has 8 ground truth images, and 8 reconstructed images
+                    n = min(data.size(0), 8)
+                    comparison = torch.cat([data[:n],
+                                            recon_batch.view(b_size, 3, IMAGE_SIZE, IMAGE_SIZE)[:n]])
+                    save_image(comparison.cpu(),
+                            f'{directory}/reconstruction_grid_{str(epoch)}.png', nrow=n)
                 
                 #save single images 
-                recon_batch = recon_batch.view(BATCH_SIZE, 3, IMAGE_SIZE, IMAGE_SIZE)
-                if epoch % PRINT_EVERY == 0:
-                    save_image(data[0].detach().cpu(), f"./{directory}/GroundTruth_image_512_e{epoch}.png")#you need to go to the cpu to save the image 
-                    save_image(recon_batch[0].detach().cpu(), f"./{directory}/reconst_image_512_e{epoch}.png")
+                #this block of code works with images size 512 
+                #But it doesn't work with image size 150 
+                # recon_batch = recon_batch.view(b_size, 3, IMAGE_SIZE, IMAGE_SIZE)
+                # if epoch % PRINT_EVERY == 0:
+                #     save_image(data[0].detach().cpu(), f"./{directory}/GroundTruth_image_512_e{epoch}.png")#you need to go to the cpu to save the image 
+                #     save_image(recon_batch[0].detach().cpu(), f"./{directory}/reconst_image_512_e{epoch}.png")
 
 
     valid_epoch_loss /= len(test_loader.dataset)
     writer.add_scalars("Epoch Loss", {'Validation Loss': valid_epoch_loss}, epoch)
     if epoch % PRINT_EVERY == 0:#will print after every time the epoch is a multiple of 100 (if the remainder is 0 then it is a multiple).
         print('====> Test set loss: {:.4f}'.format(valid_epoch_loss))
+
+#----------------------------------------------------------------------------
 
 if __name__ == "__main__":
     
@@ -182,6 +199,7 @@ if __name__ == "__main__":
         if epoch % PRINT_EVERY == 0:
             #torch.save(model, f'{directory}/vae_model_{epoch}.pth')
             save_checkpoint(model, optimizer, epoch, f'{directory}/vae_model_{epoch}.pth')
+            #sampling from the latent space 
             with torch.no_grad():
                 sample = torch.randn(64, LATENT_DIM).to(device)
                 sample = model.decode(sample).cpu()
