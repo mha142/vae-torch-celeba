@@ -33,7 +33,7 @@ PRINT_EVERY = 1 #10
 PREVIOUS_DIR = 'vaemodels-e1_70k_images'
 
 
-BATCH_SIZE = 240#for single 80gb a100 gpu  #40  # for data loaders # you can increase the batch size if you specify the number of workers (30) to be close to the number of cores (56)
+BATCH_SIZE =  480#240#for single 80gb a100 gpu  #40  # for data loaders # you can increase the batch size if you specify the number of workers (30) to be close to the number of cores (56)
 #also you need to check the gpu usage in 'on demand' to decide if you can pump up the batch size
 # if the gpu usage is low then you can bump up the batch size 
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
